@@ -1,23 +1,8 @@
 const button1 = document.querySelector("#test");
-//const button2 = document.querySelector("#sort");
 const out = document.querySelector("#out");
+
+// IMPORTANT: use your EC2 public IP (NOT 127.0.0.1) when running in your browser on your own computer
 const API_URL = "http://13.48.46.48:3000/deal";
-
-function compareBig2(a,b) {
-  if (a.number !== b.number) return b.number - a.number;
-
-  return sortRank(b.suit) - sortRank(a.suit);
-}
-
-
-function sortRank(suit) {
-  if (suit === "CLUBS") return 1;
-  if (suit === "DIAMONDS") return 2;
-  if (suit === "HEARTS") return 3;
-  if (suit === "SPADES") return 4;
-  return 0;
-}
-
 
 function displayNumber(n) {
   if (n === 11) return "J";
@@ -34,6 +19,19 @@ function suitSymbol(suit) {
   if (suit === "HEARTS") return "♥";
   if (suit === "SPADES") return "♠";
   return suit;
+}
+
+function suitRank(suit) {
+  if (suit === "CLUBS") return 1;
+  if (suit === "DIAMONDS") return 2;
+  if (suit === "HEARTS") return 3;
+  if (suit === "SPADES") return 4;
+  return 0;
+}
+
+function compareBig2(a, b) {
+  if (a.number !== b.number) return b.number - a.number;      // high number first
+  return suitRank(b.suit) - suitRank(a.suit);                // spades highest
 }
 
 function cardHtml(card) {
@@ -53,21 +51,26 @@ function handHtml(title, cards) {
 }
 
 button1.addEventListener("click", async () => {
-  const res = await fetch(API_URL);
-  const hands = await res.json();
+  try {
+    const res = await fetch(API_URL);
+    if (!res.ok) throw new Error("HTTP " + res.status);
 
-  const sortedHands = {
-    hand1: [...hands.hand1].sort(compareBig2),
-    hand2: [...hands.hand2].sort(compareBig2),
-    hand3: [...hands.hand3].sort(compareBig2),
-    hand4: [...hands.hand4].sort(compareBig2),
-  };
+    const hands = await res.json();
 
-  // ✅ render currentHand (sorted)
-  out.innerHTML =
-    handHtml("Hand 1", sortedHands.hand1) +
-    handHtml("Hand 2", sortedHands.hand2) +
-    handHtml("Hand 3", sortedHands.hand3) +
-    handHtml("Hand 4", sortedHands.hand4);
+    const sortedHands = {
+      hand1: [...hands.hand1].sort(compareBig2),
+      hand2: [...hands.hand2].sort(compareBig2),
+      hand3: [...hands.hand3].sort(compareBig2),
+      hand4: [...hands.hand4].sort(compareBig2),
+    };
+
+    out.innerHTML =
+      handHtml("Hand 1", sortedHands.hand1) +
+      handHtml("Hand 2", sortedHands.hand2) +
+      handHtml("Hand 3", sortedHands.hand3) +
+      handHtml("Hand 4", sortedHands.hand4);
+  } catch (err) {
+    console.error(err);
+    out.textContent = "Kunde inte hämta händer. Kolla Console (F12).";
+  }
 });
-
