@@ -1,0 +1,54 @@
+HOW THE SERVER.JS FILE CODE LOOKS LIKE
+
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const mysql = require("mysql2/promise");
+const fs = require("fs");
+
+const app = express();
+app.use(cors()); // ok for testing
+
+// RDS connection config (use env vars in real projects)
+const DB_HOST = process.env.DB_HOST; // your RDS endpoint
+const DB_USER = process.env.DB_USER; // admin
+const DB_PASS = process.env.DB_PASS; // password
+const DB_NAME = process.env.DB_NAME; // big2db
+
+// If your RDS requires secure transport, use SSL
+// On EC2, download global-bundle.pem once (optional but good)
+let sslConfig = undefined;
+if (fs.existsSync("./global-bundle.pem")) {
+  sslConfig = { ca: fs.readFileSync("./global-bundle.pem") };
+}
+
+const pool = mysql.createPool({
+  host: DB_HOST,
+  user: DB_USER,
+  password: DB_PASS,
+  database: DB_NAME,
+  port: 3306,
+  ssl: sslConfig, // if file exists, we verify CA
+  connectTimeout: 5000,
+});
+
+app.get("/deal", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT number, suit FROM card ORDER BY RAND()"
+    );
+    const hands = {
+        hand1: rows.slice (0,13),
+        hand2: rows.slice (13,26),
+        hand3: rows.slice (26,39),
+        hand4: rows.slice (39,52)
+};
+
+    res.json(hands);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "DB query failed" });
+  }
+});
+
+app.listen(3000, () => console.log("API running on port 3000"));

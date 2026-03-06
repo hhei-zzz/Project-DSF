@@ -1,0 +1,32 @@
+IAM USER LOGINS FOR PROJECT DSF 
+
+username: niceuu
+first password: Project123
+
+console sign-in url: https://123456789012.signin.aws.amazon.com/console
+
+
+EC2 LOGINS FOR PROJECT DSF
+
+PUBLIC IP-ADDRESS : 13.48.46.48
+
+COPY THIS: cd .\OneDrive\Documents\School\DSD\Project\
+
+1. go to folder with .pem file. In my case, onedrive > documents > school > dsd > project
+2. ssh -i "big2-key.pem" ec2-user@13.48.46.48
+
+EC2 API FILE and server
+
+1. after steps above: cd big2-api (big2-api contains server.js and .env, server.js is code with server instructions and .env is "logins" for server. DB_HOST, DB_NAME and so on)
+2. node server.js (starting the API)
+
+3.use: curl -v http://127.0.0.1:3000/random-card  (in terminal. this will test and give you a random card)
+  use: http://13.48.46.48:3000/random-card (in browser after running API. this will give you random card in browser) 
+
+DATABASE LOGINS FOR PROJECT DSF
+
+1. be in ec2 ^ 
+2. mysql -h big2-db.chs4g68yefwu.eu-north-1.rds.amazonaws.com -u admin -p --ssl big2db
+
+3. type in password (laxen123)
+

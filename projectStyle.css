@@ -4,6 +4,11 @@
   gap: 14px;
 }
 
+#knappar {
+  display: box;
+  
+}
+
 .hand {
   padding: 12px;
   border: 1px solid #ddd;
@@ -40,4 +45,9 @@
 
 .card.red {
   color: #c00;
+}
+
+.card.selected {
+  outline: 3px solid #2b7cff;
+  transform: translateY(-2px);
 }
