@@ -1,4 +1,5 @@
 const button1 = document.querySelector("#test");
+const button2 = document.querySelector("#play");
 const out = document.querySelector("#out");
 
 // IMPORTANT: use your EC2 public IP (NOT 127.0.0.1) when running in your browser on your own computer
@@ -38,7 +39,7 @@ function cardHtml(card) {
   const n = displayNumber(card.number);
   const s = suitSymbol(card.suit);
   const red = (card.suit === "HEARTS" || card.suit === "DIAMONDS") ? "red" : "";
-  return `<span class="card ${red}">${n}${s}</span>`;
+  return `<span class="card ${red}" data-number="${card.number}" data-suit="${card.suit}">${n}${s}</span>`;
 }
 
 function handHtml(title, cards) {
@@ -49,6 +50,35 @@ function handHtml(title, cards) {
     </div>
   `;
 }
+
+out.addEventListener("click", (e) => {
+  const card = e.target.closest(".card");
+  if (!card) return;
+
+  const selectedCards = out.querySelectorAll(".card.selected");
+
+  // if card already selected → allow unselect
+
+  if (card.classList.contains("selected")) {
+    card.classList.remove("selected");
+    return;
+  }
+
+  // prevent selecting more than 5
+
+  if (selectedCards.length >= 5) {
+    return;
+  }
+
+  const number = card.dataset.number;
+  const suit = card.dataset.suit;
+
+  console.log(number, suit);
+  
+  card.classList.toggle("selected");
+
+  card.classList.add("selected");
+});
 
 button1.addEventListener("click", async () => {
   try {
