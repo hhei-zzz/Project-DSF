@@ -1,6 +1,9 @@
-const button1 = document.querySelector("#test");
+const button1 = document.querySelector("#deal");
 const button2 = document.querySelector("#play");
+const button3 = document.querySelector("#pass");
+const button4 = document.querySelector("#clear");
 const out = document.querySelector("#out");
+
 
 // IMPORTANT: use your EC2 public IP (NOT 127.0.0.1) when running in your browser on your own computer
 const API_URL = "http://13.48.46.48:3000/deal";
@@ -35,20 +38,30 @@ function compareBig2(a, b) {
   return suitRank(b.suit) - suitRank(a.suit);                // spades highest
 }
 
-function cardHtml(card) {
+function cardHtml(card, handName) {
   const n = displayNumber(card.number);
   const s = suitSymbol(card.suit);
   const red = (card.suit === "HEARTS" || card.suit === "DIAMONDS") ? "red" : "";
-  return `<span class="card ${red}" data-number="${card.number}" data-suit="${card.suit}">${n}${s}</span>`;
+  return `<span class="card ${red}" data-number="${card.number}" data-suit="${card.suit}" data-hand="${handName}">${n}${s}</span>`;
 }
 
-function handHtml(title, cards) {
+function handHtml(title, cards, handName) {
   return `
     <div class="hand">
       <div class="hand-title">${title}</div>
-      <div class="cards">${cards.map(cardHtml).join("")}</div>
+      <div class="cards">${cards.map(card => cardHtml(card, handName)).join("")}</div>
     </div>
   `;
+}
+
+function getSelectedCards() {
+  const selected = out.querySelectorAll(".card.selected");
+
+  return Array.from(selected).map(card => ({
+    number: Number(card.dataset.number),
+    suit: card.dataset.suit,
+    hand: card.dataset.hand
+  }));
 }
 
 out.addEventListener("click", (e) => {
@@ -56,28 +69,30 @@ out.addEventListener("click", (e) => {
   if (!card) return;
 
   const selectedCards = out.querySelectorAll(".card.selected");
+  const clickedHand = card.dataset.hand;
 
-  // if card already selected → allow unselect
-
+  // if clicked card is already selected, unselect it
   if (card.classList.contains("selected")) {
     card.classList.remove("selected");
     return;
   }
 
-  // prevent selecting more than 5
+  // if there are selected cards already, check they are from same hand
+  if (selectedCards.length > 0) {
+    const firstSelectedHand = selectedCards[0].dataset.hand;
+    if (clickedHand !== firstSelectedHand) {
+      return;
+    }
+  }
 
+  // maximum 5 selected cards
   if (selectedCards.length >= 5) {
     return;
   }
 
-  const number = card.dataset.number;
-  const suit = card.dataset.suit;
-
-  console.log(number, suit);
-  
-  card.classList.toggle("selected");
-
   card.classList.add("selected");
+
+  console.log(getSelectedCards());
 });
 
 button1.addEventListener("click", async () => {
@@ -95,12 +110,65 @@ button1.addEventListener("click", async () => {
     };
 
     out.innerHTML =
-      handHtml("Hand 1", sortedHands.hand1) +
-      handHtml("Hand 2", sortedHands.hand2) +
-      handHtml("Hand 3", sortedHands.hand3) +
-      handHtml("Hand 4", sortedHands.hand4);
+      handHtml("Hand 1", sortedHands.hand1, "hand1") +
+      handHtml("Hand 2", sortedHands.hand2, "hand2") +
+      handHtml("Hand 3", sortedHands.hand3, "hand3") +
+      handHtml("Hand 4", sortedHands.hand4, "hand4");
   } catch (err) {
     console.error(err);
     out.textContent = "Kunde inte hämta händer. Kolla Console (F12).";
   }
+});
+
+button2.addEventListener("click", async () => {
+
+  const selectedCards = getSelectedCards();
+
+  if (selectedCards.length === 0) {
+    alert("Select cards first");
+    return;
+  }
+
+  // Example simple validation
+  if (selectedCards.length > 5) {
+    alert("You can only play up to 5 cards");
+    return;
+  }
+
+  try {
+
+    const res = await fetch("http://13.48.46.48:3000/play", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        cards: selectedCards
+      })
+    });
+
+    const data = await res.json();
+
+    console.log("Server response:", data);
+
+    // remove cards from page after successful play
+    const selectedEls = out.querySelectorAll(".card.selected");
+    selectedEls.forEach(card => card.remove());
+
+  } catch (err) {
+    console.error(err);
+  }
+
+});
+
+button4.addEventListener("click", async () => {
+  // Hitta alla valda kort och ta bort "selected" klassen
+  const selectedCards = document.querySelectorAll(".card.selected");
+  
+  selectedCards.forEach(card => {
+    card.classList.remove("selected");
+  });
+  
+  // Om du vill kan du logga att det är klart
+  console.log("Alla kort är avmarkerade");
 });

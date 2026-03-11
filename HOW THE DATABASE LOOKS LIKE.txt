@@ -1,0 +1,54 @@
+HOW THE DATABASE LOOKS LIKE
+
+CREATE TABLE `card` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `number` int(11) NOT NULL,
+  `suit` enum('CLUBS','DIAMONDS','HEARTS','SPADES') NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_card` (`number`,`suit`)
+
+CREATE TABLE `game` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `status` enum('WAITING','ACTIVE','FINISHED') NOT NULL DEFAULT 'WAITING',
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `current_turn_player_id` int(11) DEFAULT NULL,
+  `last_move_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+
+CREATE TABLE `move` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `game_id` int(11) NOT NULL,
+  `player_id` int(11) NOT NULL,
+  `move_type` enum('PLAY','PASS') NOT NULL,
+  `cards_json` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `game_id` (`game_id`),
+  KEY `player_id` (`player_id`),
+  CONSTRAINT `move_ibfk_1` FOREIGN KEY (`game_id`) REFERENCES `game` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `move_ibfk_2` FOREIGN KEY (`player_id`) REFERENCES `player` (`id`) ON DELETE CASCADE
+
+CREATE TABLE `player` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `game_id` int(11) NOT NULL,
+  `name` varchar(50) NOT NULL,
+  `seat` tinyint(4) NOT NULL,
+  `join_token` varchar(64) NOT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_game_seat` (`game_id`,`seat`),
+  CONSTRAINT `player_ibfk_1` FOREIGN KEY (`game_id`) REFERENCES `game` (`id`) ON DELETE CASCADE
+
+CREATE TABLE `player_card` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `game_id` int(11) NOT NULL,
+  `player_id` int(11) NOT NULL,
+  `card_id` int(11) NOT NULL,
+  `in_hand` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_game_card` (`game_id`,`card_id`),
+  KEY `player_id` (`player_id`),
+  KEY `card_id` (`card_id`),
+  CONSTRAINT `player_card_ibfk_1` FOREIGN KEY (`game_id`) REFERENCES `game` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `player_card_ibfk_2` FOREIGN KEY (`player_id`) REFERENCES `player` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `player_card_ibfk_3` FOREIGN KEY (`card_id`) REFERENCES `card` (`id`) ON DELETE CASCADE
