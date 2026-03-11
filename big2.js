@@ -161,6 +161,23 @@ button2.addEventListener("click", async () => {
 
 });
 
+button3.addEventListener("click", async () => {
+
+
+  const res = await fetch("http://13.48.46.48:3000/play", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        cards: false
+      })
+    });
+
+
+
+});
+
 button4.addEventListener("click", async () => {
   // Hitta alla valda kort och ta bort "selected" klassen
   const selectedCards = document.querySelectorAll(".card.selected");
