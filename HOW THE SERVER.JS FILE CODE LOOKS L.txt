@@ -51,4 +51,58 @@ app.get("/deal", async (req, res) => {
   }
 });
 
-app.listen(3000, () => console.log("API running on port 3000"));
+app.post("/play", async (req, res) => {
+
+  const cards = req.body.cards;
+
+  console.log("Cards played:", cards);
+
+  // later you can save the move in your database
+  // for now just return success
+
+  res.json({
+    status: "ok",
+    playedCards: cards
+  });
+
+await pool.query(
+  "INSERT INTO move (game_id, player_id, move_type, cards_json) VALUES (?, ?, 'PLAY', ?)",
+  [1, 1, JSON.stringify(cards)]
+);
+
+});
+
+app.post("/pass", async (req, res) => {
+
+  try {
+
+    await pool.query(
+      "INSERT INTO move (game_id, player_id, move_type) VALUES (?, ?, 'PASS')",
+      [1, 1]
+    );
+
+    res.json({
+      status: "ok",
+      move: "PASS"
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "DB insert failed" });
+  }
+
+});
+
+app.get("/history", async (req, res) => {
+
+  const [rows] = await pool.query(
+    "SELECT player_id, move_type, cards_json FROM move WHERE game_id = 1 ORDER BY id DESC LIMIT 10"
+  );
+
+  res.json(rows);
+
+});
+
+app.listen(3000, "0.0.0.0", () => {
+  console.log("API running on port 3000");
+});

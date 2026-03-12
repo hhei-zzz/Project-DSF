@@ -3,6 +3,8 @@ const button2 = document.querySelector("#play");
 const button3 = document.querySelector("#pass");
 const button4 = document.querySelector("#clear");
 const out = document.querySelector("#out");
+const historyBox = document.querySelector("#history");
+const historyContent = document.querySelector(".history-content");
 
 
 // IMPORTANT: use your EC2 public IP (NOT 127.0.0.1) when running in your browser on your own computer
@@ -54,6 +56,7 @@ function handHtml(title, cards, handName) {
   `;
 }
 
+//info om kort i en array, returneras i json format
 function getSelectedCards() {
   const selected = out.querySelectorAll(".card.selected");
 
@@ -94,6 +97,48 @@ out.addEventListener("click", (e) => {
 
   console.log(getSelectedCards());
 });
+
+
+
+historyBox.addEventListener("mouseenter", loadLastHandPlayed);
+
+async function loadLastHandPlayed() {
+  try {
+    console.log("hover detected");
+
+    const res = await fetch("http://13.48.46.48:3000/history");
+    console.log("fetch response:", res.status, res.ok);
+
+    if (!res.ok) {
+      historyContent.innerHTML = `<div>Server error: ${res.status}</div>`;
+      return;
+    }
+
+    const moves = await res.json();
+    console.log("history data:", moves);
+
+    const lastPlay = moves.find(move =>
+      move.move_type === "PLAY" && move.cards_json
+    );
+
+    if (!lastPlay) {
+      historyContent.innerHTML = "<div>No hand has been played yet.</div>";
+      return;
+    }
+
+    const cards = JSON.parse(lastPlay.cards_json);
+
+    const cardText = cards.map(card =>
+      `${displayNumber(card.number)}${suitSymbol(card.suit)}`
+    ).join(" ");
+
+    historyContent.innerHTML = `<div>Player ${lastPlay.player_id}: ${cardText}</div>`;
+  } catch (err) {
+    console.error("Could not get history:", err);
+    historyContent.innerHTML = "<div>Could not get history</div>";
+  }
+}
+
 
 button1.addEventListener("click", async () => {
   try {
@@ -151,6 +196,7 @@ button2.addEventListener("click", async () => {
 
     console.log("Server response:", data);
 
+
     // remove cards from page after successful play
     const selectedEls = out.querySelectorAll(".card.selected");
     selectedEls.forEach(card => card.remove());
@@ -162,20 +208,28 @@ button2.addEventListener("click", async () => {
 });
 
 button3.addEventListener("click", async () => {
+  const selectedCards = getSelectedCards();
 
+  if (selectedCards.length !== 0) {
+    alert("Un-select cards first");
+    return;
+  }
 
-  const res = await fetch("http://13.48.46.48:3000/play", {
+  try {
+    const res = await fetch("http://13.48.46.48:3000/pass", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        cards: false
-      })
+      body: JSON.stringify({})
     });
 
+    const data = await res.json();
+    console.log(data);
 
-
+  } catch (err) {
+    console.error(err);
+  }
 });
 
 button4.addEventListener("click", async () => {
