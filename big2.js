@@ -38,6 +38,12 @@ function compareBig2(a, b) {
   return suitRank(b.suit) - suitRank(a.suit);                // spades highest
 }
 
+//*************************//
+
+//*************************//
+
+
+
 function cardHtml(card, handName) {
   const n = displayNumber(card.number);
   const s = suitSymbol(card.suit);
