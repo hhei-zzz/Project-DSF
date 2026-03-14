@@ -74,6 +74,8 @@ await pool.query(
 
 app.post("/pass", async (req, res) => {
 
+  console.log("Player passed");
+
   try {
 
     await pool.query(
