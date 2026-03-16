@@ -1,14 +1,16 @@
-const button1 = document.querySelector("#deal");
 const button2 = document.querySelector("#play");
 const button3 = document.querySelector("#pass");
 const button4 = document.querySelector("#clear");
 const out = document.querySelector("#out");
 const historyBox = document.querySelector("#history");
 const historyContent = document.querySelector(".history-content");
+const button5 = document.querySelector("#ready")
 
 
-// IMPORTANT: use your EC2 public IP (NOT 127.0.0.1) when running in your browser on your own computer
-const API_URL = "http://13.48.46.48:3000/deal";
+const playerId = sessionStorage.getItem("player_id");
+const playerName = sessionStorage.getItem("player_name");
+
+document.querySelector("#player-title").textContent = `${playerName}'s Hand`;
 
 function displayNumber(n) {
   if (n === 11) return "J";
@@ -36,34 +38,32 @@ function suitRank(suit) {
 }
 
 function compareBig2(a, b) {
-  if (a.number !== b.number) return b.number - a.number;      // high number first
-  return suitRank(b.suit) - suitRank(a.suit);                // spades highest
+  if (a.number !== b.number) return b.number - a.number;
+  return suitRank(b.suit) - suitRank(a.suit);
 }
 
-function cardHtml(card, handName) {
+function cardHtml(card) {
   const n = displayNumber(card.number);
   const s = suitSymbol(card.suit);
   const red = (card.suit === "HEARTS" || card.suit === "DIAMONDS") ? "red" : "";
-  return `<span class="card ${red}" data-number="${card.number}" data-suit="${card.suit}" data-hand="${handName}">${n}${s}</span>`;
+  return `<span class="card ${red}" data-card-id="${card.id}" data-number="${card.number}" data-suit="${card.suit}">${n}${s}</span>`;
 }
 
-function handHtml(title, cards, handName) {
+function handHtml(cards) {
   return `
     <div class="hand">
-      <div class="hand-title">${title}</div>
-      <div class="cards">${cards.map(card => cardHtml(card, handName)).join("")}</div>
+      <div class="hand-title">Your Hand</div>
+      <div class="cards">${cards.map(cardHtml).join("")}</div>
     </div>
   `;
 }
 
-//info om kort i en array, returneras i json format
 function getSelectedCards() {
   const selected = out.querySelectorAll(".card.selected");
-
   return Array.from(selected).map(card => ({
+    card_id: Number(card.dataset.cardId),
     number: Number(card.dataset.number),
-    suit: card.dataset.suit,
-    hand: card.dataset.hand
+    suit: card.dataset.suit
   }));
 }
 
@@ -72,101 +72,60 @@ out.addEventListener("click", (e) => {
   if (!card) return;
 
   const selectedCards = out.querySelectorAll(".card.selected");
-  const clickedHand = card.dataset.hand;
 
-  // if clicked card is already selected, unselect it
   if (card.classList.contains("selected")) {
     card.classList.remove("selected");
     return;
   }
 
-  // if there are selected cards already, check they are from same hand
-  if (selectedCards.length > 0) {
-    const firstSelectedHand = selectedCards[0].dataset.hand;
-    if (clickedHand !== firstSelectedHand) {
-      return;
-    }
-  }
-
-  // maximum 5 selected cards
-  if (selectedCards.length >= 5) {
-    return;
-  }
+  if (selectedCards.length >= 5) return;
 
   card.classList.add("selected");
-
-  console.log(getSelectedCards());
 });
 
-
+async function loadMyHand() {
+  try {
+    const res = await fetch(`http://13.48.46.48:3000/hand/${playerId}`);
+    const cards = await res.json();
+    const sorted = [...cards].sort(compareBig2);
+    out.innerHTML = handHtml(sorted);
+  } catch (err) {
+    console.error(err);
+    out.textContent = "Could not load hand";
+  }
+}
 
 historyBox.addEventListener("mouseenter", loadLastHandPlayed);
 
 async function loadLastHandPlayed() {
   try {
-    console.log("hover detected");
-
     const res = await fetch("http://13.48.46.48:3000/history");
-    console.log("fetch response:", res.status, res.ok);
-
-    if (!res.ok) {
-      historyContent.innerHTML = `<div>Server error: ${res.status}</div>`;
-      return;
-    }
-
     const moves = await res.json();
-    console.log("history data:", moves);
 
-    const lastPlay = moves.find(move =>
-      move.move_type === "PLAY" && move.cards_json
-    );
+    const lastPlay = moves[0];
 
     if (!lastPlay) {
       historyContent.innerHTML = "<div>No hand has been played yet.</div>";
       return;
     }
 
-    const cards = JSON.parse(lastPlay.cards_json);
+    if (lastPlay.move_type === "PASS") {
+      historyContent.innerHTML = `<div>Player ${lastPlay.player_id}: Passed</div>`;
+    } else {
+      const cards = JSON.parse(lastPlay.cards_json);
+      const cardText = cards.map(card =>
+        `${displayNumber(card.number)}${suitSymbol(card.suit)}`
+      ).join(" ");
 
-    const cardText = cards.map(card =>
-      `${displayNumber(card.number)}${suitSymbol(card.suit)}`
-    ).join(" ");
-
-    historyContent.innerHTML = `<div>Player ${lastPlay.player_id}: ${cardText}</div>`;
+      historyContent.innerHTML = `<div>Player ${lastPlay.player_id}: ${cardText}</div>`;
+    }
   } catch (err) {
-    console.error("Could not get history:", err);
+    console.error(err);
     historyContent.innerHTML = "<div>Could not get history</div>";
   }
 }
 
-
-button1.addEventListener("click", async () => {
-  try {
-    const res = await fetch(API_URL);
-    if (!res.ok) throw new Error("HTTP " + res.status);
-
-    const hands = await res.json();
-
-    const sortedHands = {
-      hand1: [...hands.hand1].sort(compareBig2),
-      hand2: [...hands.hand2].sort(compareBig2),
-      hand3: [...hands.hand3].sort(compareBig2),
-      hand4: [...hands.hand4].sort(compareBig2),
-    };
-
-    out.innerHTML =
-      handHtml("Hand 1", sortedHands.hand1, "hand1") +
-      handHtml("Hand 2", sortedHands.hand2, "hand2") +
-      handHtml("Hand 3", sortedHands.hand3, "hand3") +
-      handHtml("Hand 4", sortedHands.hand4, "hand4");
-  } catch (err) {
-    console.error(err);
-    out.textContent = "Kunde inte hämta händer. Kolla Console (F12).";
-  }
-});
-
 button2.addEventListener("click", async () => {
-
   const selectedCards = getSelectedCards();
 
   if (selectedCards.length === 0) {
@@ -174,72 +133,78 @@ button2.addEventListener("click", async () => {
     return;
   }
 
-  // Example simple validation
-  if (selectedCards.length > 5) {
-    alert("You can only play up to 5 cards");
-    return;
-  }
-
   try {
-
     const res = await fetch("http://13.48.46.48:3000/play", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
+        player_id: Number(playerId),
         cards: selectedCards
       })
     });
 
     const data = await res.json();
-
-    console.log("Server response:", data);
-
-
-    // remove cards from page after successful play
-    const selectedEls = out.querySelectorAll(".card.selected");
-    selectedEls.forEach(card => card.remove());
-
+    console.log(data);
+    loadMyHand();
   } catch (err) {
     console.error(err);
   }
-
 });
 
 button3.addEventListener("click", async () => {
-  const selectedCards = getSelectedCards();
-
-  if (selectedCards.length !== 0) {
-    alert("Un-select cards first");
-    return;
-  }
-
   try {
     const res = await fetch("http://13.48.46.48:3000/pass", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({})
+      body: JSON.stringify({
+        player_id: Number(playerId)
+      })
     });
 
     const data = await res.json();
     console.log(data);
-
   } catch (err) {
     console.error(err);
   }
 });
 
-button4.addEventListener("click", async () => {
-  // Hitta alla valda kort och ta bort "selected" klassen
-  const selectedCards = document.querySelectorAll(".card.selected");
-  
-  selectedCards.forEach(card => {
+button4.addEventListener("click", () => {
+  document.querySelectorAll(".card.selected").forEach(card => {
     card.classList.remove("selected");
   });
-  
-  // Om du vill kan du logga att det är klart
-  console.log("Alla kort är avmarkerade");
 });
+
+
+button5.addEventListener("click", async () => {
+  try {
+    const res = await fetch("http://13.48.46.48:3000/ready", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        player_id: Number(playerId)
+      })
+    });
+
+    const data = await res.json();
+    console.log(data);
+
+    if (data.status === "all_ready") {
+      alert("All players are ready. Cards have been dealt.");
+      loadMyHand();
+    } else {
+      alert("You are marked as ready. Waiting for other players.");
+    }
+
+  } catch (err) {
+    console.error(err);
+    alert("Could not set ready");
+  }
+});
+
+loadMyHand();

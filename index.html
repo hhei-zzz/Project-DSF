@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="projectStyle.css">
+</head>
+<body>
+  <h1>Join Big2</h1>
+
+  <form id="join-form">
+    <input id="player-name" type="text" placeholder="Enter your name" required>
+    <button type="submit">Join Game</button>
+  </form>
+
+  <script>
+    const form = document.querySelector("#join-form");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const name = document.querySelector("#player-name").value.trim();
+
+      try {
+        const res = await fetch("http://13.48.46.48:3000/join", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ name })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert(data.error || "Could not join");
+          return;
+        }
+
+        sessionStorage.setItem("player_id", data.player_id);
+        sessionStorage.setItem("player_name", data.name);
+        sessionStorage.setItem("seat", data.seat);
+
+        window.location.href = "projectIndex.html";
+      } catch (err) {
+        console.error(err);
+        alert("Join failed");
+      }
+    });
+  </script>
+</body>
+</html>

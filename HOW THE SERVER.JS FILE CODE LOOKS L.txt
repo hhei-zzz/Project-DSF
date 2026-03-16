@@ -1,6 +1,6 @@
 HOW THE SERVER.JS FILE CODE LOOKS LIKE
 
-require("dotenv").config();
+project: require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const mysql = require("mysql2/promise");
@@ -8,6 +8,7 @@ const fs = require("fs");
 
 const app = express();
 app.use(cors()); // ok for testing
+app.use(express.json());
 
 // RDS connection config (use env vars in real projects)
 const DB_HOST = process.env.DB_HOST; // your RDS endpoint
@@ -29,7 +30,6 @@ const pool = mysql.createPool({
   database: DB_NAME,
   port: 3306,
   ssl: sslConfig, // if file exists, we verify CA
-  connectTimeout: 5000,
 });
 
 app.get("/deal", async (req, res) => {
@@ -37,12 +37,13 @@ app.get("/deal", async (req, res) => {
     const [rows] = await pool.query(
       "SELECT number, suit FROM card ORDER BY RAND()"
     );
+
     const hands = {
-        hand1: rows.slice (0,13),
-        hand2: rows.slice (13,26),
-        hand3: rows.slice (26,39),
-        hand4: rows.slice (39,52)
-};
+      hand1: rows.slice(0, 13),
+      hand2: rows.slice(13, 26),
+      hand3: rows.slice(26, 39),
+      hand4: rows.slice(39, 52)
+    };
 
     res.json(hands);
   } catch (err) {
@@ -51,47 +52,37 @@ app.get("/deal", async (req, res) => {
   }
 });
 
+
 app.post("/play", async (req, res) => {
 
-  const cards = req.body.cards;
+  const { player_id, cards } = req.body;
 
-  console.log("Cards played:", cards);
+  console.log("Player:", player_id);
+  console.log("Cards:", cards);
 
-  // later you can save the move in your database
-  // for now just return success
+  for (const card of cards) {
+  await pool.query(
+    `UPDATE player_card
+     SET in_hand = 0
+     WHERE game_id = ? AND player_id = ? AND card_id = ?`,
+    [1, player_id, card.card_id]
+  );
+}
 
-  res.json({
-    status: "ok",
-    playedCards: cards
-  });
-
-await pool.query(
-  "INSERT INTO move (game_id, player_id, move_type, cards_json) VALUES (?, ?, 'PLAY', ?)",
-  [1, 1, JSON.stringify(cards)]
-);
+  res.json({ status: "ok" });
 
 });
 
 app.post("/pass", async (req, res) => {
 
-  console.log("Player passed");
+  const { player_id } = req.body;
 
-  try {
+  await pool.query(
+    "INSERT INTO move (game_id, player_id, move_type) VALUES (?, ?, 'PASS')",
+    [1, player_id]
+  );
 
-    await pool.query(
-      "INSERT INTO move (game_id, player_id, move_type) VALUES (?, ?, 'PASS')",
-      [1, 1]
-    );
-
-    res.json({
-      status: "ok",
-      move: "PASS"
-    });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "DB insert failed" });
-  }
+  res.json({ status: "ok" });
 
 });
 
@@ -107,4 +98,214 @@ app.get("/history", async (req, res) => {
 
 app.listen(3000, "0.0.0.0", () => {
   console.log("API running on port 3000");
+});
+
+app.post("/join", async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "Name is required" });
+    }
+
+    const gameId = 1;
+
+    const [existing] = await pool.query(
+      "SELECT id, name, seat FROM player WHERE game_id = ? AND name = ? LIMIT 1",
+      [gameId, name.trim()]
+    );
+
+    if (existing.length > 0) {
+      return res.json({
+        player_id: existing[0].id,
+        name: existing[0].name,
+        seat: existing[0].seat
+      });
+    }
+
+    const [seatRows] = await pool.query(
+      "SELECT seat FROM player WHERE game_id = ? ORDER BY seat",
+      [gameId]
+    );
+
+    const usedSeats = seatRows.map(r => r.seat);
+    let nextSeat = 1;
+    while (usedSeats.includes(nextSeat) && nextSeat <= 4) {
+      nextSeat++;
+    }
+
+    if (nextSeat > 4) {
+      return res.status(400).json({ error: "Game is full" });
+    }
+
+    const joinToken = Math.random().toString(36).slice(2, 12);
+
+    const [result] = await pool.query(
+      "INSERT INTO player (game_id, name, seat, join_token) VALUES (?, ?, ?, ?)",
+      [gameId, name.trim(), nextSeat, joinToken]
+    );
+
+    res.json({
+      player_id: result.insertId,
+      name: name.trim(),
+      seat: nextSeat
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Join failed" });
+  }
+});
+
+app.post("/deal-game", async (req, res) => {
+  try {
+    const gameId = 1;
+
+    const [players] = await pool.query(
+      "SELECT id FROM player WHERE game_id = ? ORDER BY seat",
+      [gameId]
+    );
+
+    if (players.length !== 4) {
+      return res.status(400).json({ error: "Need 4 players before dealing" });
+    }
+
+    const [existingCards] = await pool.query(
+      "SELECT id FROM player_card WHERE game_id = ? LIMIT 1",
+      [gameId]
+    );
+
+    if (existingCards.length > 0) {
+      return res.json({ status: "already dealt" });
+    }
+
+    const [cards] = await pool.query(
+      "SELECT id FROM card ORDER BY RAND()"
+    );
+
+    const values = [];
+    for (let i = 0; i < 52; i++) {
+      const playerIndex = Math.floor(i / 13);
+      values.push([gameId, players[playerIndex].id, cards[i].id, 1]);
+    }
+
+    await pool.query(
+      "INSERT INTO player_card (game_id, player_id, card_id, in_hand) VALUES ?",
+      [values]
+    );
+
+    res.json({ status: "dealt" });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Deal failed" });
+  }
+});
+
+app.get("/hand/:playerId", async (req, res) => {
+  try {
+    const playerId = req.params.playerId;
+    const gameId = 1;
+
+    const [rows] = await pool.query(
+      `SELECT c.id, c.number, c.suit
+       FROM player_card pc
+       JOIN card c ON pc.card_id = c.id
+       WHERE pc.game_id = ? AND pc.player_id = ? AND pc.in_hand = 1`,
+      [gameId, playerId]
+    );
+
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load hand" });
+  }
+});
+
+app.post("/ready", async (req, res) => {
+  try {
+    const { player_id } = req.body;
+
+    if (!player_id) {
+      return res.status(400).json({ error: "player_id is required" });
+    }
+
+    // find the player's game
+    const [playerRows] = await pool.query(
+      "SELECT id, game_id FROM player WHERE id = ? LIMIT 1",
+      [player_id]
+    );
+
+    if (playerRows.length === 0) {
+      return res.status(404).json({ error: "Player not found" });
+    }
+
+    const gameId = playerRows[0].game_id;
+
+    // mark this player as ready
+    await pool.query(
+      "UPDATE player SET ready = 1 WHERE id = ?",
+      [player_id]
+    );
+
+    // check how many players are in this game
+    const [players] = await pool.query(
+      "SELECT id, seat, ready FROM player WHERE game_id = ? ORDER BY seat",
+      [gameId]
+    );
+
+    // require exactly 4 players
+    if (players.length < 4) {
+      return res.json({
+        status: "waiting",
+        message: "Waiting for 4 players to join"
+      });
+    }
+
+    const allReady = players.every(p => p.ready === 1);
+
+    if (!allReady) {
+      return res.json({
+        status: "waiting",
+        message: "Waiting for other players to click ready"
+      });
+    }
+
+    // don't deal twice
+    const [existingCards] = await pool.query(
+      "SELECT id FROM player_card WHERE game_id = ? LIMIT 1",
+      [gameId]
+    );
+
+    if (existingCards.length === 0) {
+      const [cards] = await pool.query(
+        "SELECT id FROM card ORDER BY RAND()"
+      );
+
+      const values = [];
+      for (let i = 0; i < 52; i++) {
+        const playerIndex = Math.floor(i / 13);
+        values.push([gameId, players[playerIndex].id, cards[i].id, 1]);
+      }
+
+      await pool.query(
+        "INSERT INTO player_card (game_id, player_id, card_id, in_hand) VALUES ?",
+        [values]
+      );
+
+      await pool.query(
+        "UPDATE game SET status = 'ACTIVE' WHERE id = ?",
+        [gameId]
+      );
+    }
+
+    res.json({
+      status: "all_ready",
+      message: "All players ready, game started"
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Ready failed" });
+  }
 });
