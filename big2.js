@@ -207,4 +207,6 @@ button5.addEventListener("click", async () => {
   }
 });
 
+
+
 loadMyHand();
