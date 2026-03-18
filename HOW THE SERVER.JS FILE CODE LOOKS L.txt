@@ -93,15 +93,22 @@ app.post("/pass", async (req, res) => {
 });
 
 app.get("/history", async (req, res) => {
+  const [rows] = await pool.query(`
+    SELECT 
+      m.player_id,
+      p.name AS player_name,
+      m.move_type,
+      m.cards_json
+    FROM move m
+    JOIN player p ON m.player_id = p.id
+    WHERE m.game_id = 1
+    ORDER BY m.id DESC
+    LIMIT 10
+  `);
 
-  const [rows] = await pool.query(
-    "SELECT player_id, move_type, cards_json FROM move WHERE game_id = 1 ORDER BY id DESC LIMIT 10"
-  );
-
-  res.json(rows);
-
+   res.json(rows);
 });
-
+ 
 app.listen(3000, "0.0.0.0", () => {
   console.log("API running on port 3000");
 });

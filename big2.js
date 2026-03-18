@@ -113,7 +113,7 @@ async function loadRoundHistory() {
       .reverse()
       .map(move => {
         if (move.move_type === "PASS") {
-          return `<div class="move-row">Player ${move.player_id}: Passed</div>`;
+          return `<div class="move-row">${move.player_name}: Passed</div>`;
         }
 
         let cards = [];
@@ -127,7 +127,7 @@ async function loadRoundHistory() {
           `${displayNumber(card.number)}${suitSymbol(card.suit)}`
         ).join(" ");
 
-        return `<div class="move-row">Player ${move.player_id}: ${cardText}</div>`;
+        return `<div class="move-row">${move.player_name}: ${cardText}</div>`;
       })
       .join("");
 
