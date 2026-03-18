@@ -97,7 +97,7 @@ async function loadMyHand() {
 
 async function loadRoundHistory() {
   try {
-    const res = await fetch("http://13.48.46.48:3000/history");
+    const res = await fetch(`http://13.48.46.48:3000/history/${playerId}`);
     const moves = await res.json();
 
     if (!moves || moves.length === 0) {
