@@ -1,11 +1,11 @@
-const button2 = document.querySelector("#play");
-const button3 = document.querySelector("#pass");
-const button4 = document.querySelector("#clear");
-const out = document.querySelector("#out");
-const historyBox = document.querySelector("#history");
-const historyContent = document.querySelector(".history-content");
-const button5 = document.querySelector("#ready")
+const buttonPlay = document.querySelector("#play");
+const buttonPass = document.querySelector("#pass");
+const buttonClear = document.querySelector("#clear");
+const buttonReady = document.querySelector("#ready");
 
+const out = document.querySelector("#out");
+const historyContent = document.querySelector("#history-content");
+const roundInfo = document.querySelector("#round-info");
 
 const playerId = sessionStorage.getItem("player_id");
 const playerName = sessionStorage.getItem("player_name");
@@ -95,37 +95,50 @@ async function loadMyHand() {
   }
 }
 
-historyBox.addEventListener("mouseenter", loadLastHandPlayed);
-
-async function loadLastHandPlayed() {
+async function loadRoundHistory() {
   try {
     const res = await fetch("http://13.48.46.48:3000/history");
     const moves = await res.json();
 
-    const lastPlay = moves[0];
-
-    if (!lastPlay) {
-      historyContent.innerHTML = "<div>No hand has been played yet.</div>";
+    if (!moves || moves.length === 0) {
+      roundInfo.textContent = "Current Round";
+      historyContent.innerHTML = `<div class="move-row">No moves yet.</div>`;
       return;
     }
 
-    if (lastPlay.move_type === "PASS") {
-      historyContent.innerHTML = `<div>Player ${lastPlay.player_id}: Passed</div>`;
-    } else {
-      const cards = JSON.parse(lastPlay.cards_json);
-      const cardText = cards.map(card =>
-        `${displayNumber(card.number)}${suitSymbol(card.suit)}`
-      ).join(" ");
+    roundInfo.textContent = `Moves this round`;
 
-      historyContent.innerHTML = `<div>Player ${lastPlay.player_id}: ${cardText}</div>`;
-    }
+    const html = moves
+      .slice()
+      .reverse()
+      .map(move => {
+        if (move.move_type === "PASS") {
+          return `<div class="move-row">Player ${move.player_id}: Passed</div>`;
+        }
+
+        let cards = [];
+        try {
+          cards = JSON.parse(move.cards_json || "[]");
+        } catch {
+          cards = [];
+        }
+
+        const cardText = cards.map(card =>
+          `${displayNumber(card.number)}${suitSymbol(card.suit)}`
+        ).join(" ");
+
+        return `<div class="move-row">Player ${move.player_id}: ${cardText}</div>`;
+      })
+      .join("");
+
+    historyContent.innerHTML = html;
   } catch (err) {
     console.error(err);
-    historyContent.innerHTML = "<div>Could not get history</div>";
+    historyContent.innerHTML = `<div class="move-row">Could not load history</div>`;
   }
 }
 
-button2.addEventListener("click", async () => {
+buttonPlay.addEventListener("click", async () => {
   const selectedCards = getSelectedCards();
 
   if (selectedCards.length === 0) {
@@ -147,13 +160,15 @@ button2.addEventListener("click", async () => {
 
     const data = await res.json();
     console.log(data);
-    loadMyHand();
+
+    await loadMyHand();
+    await loadRoundHistory();
   } catch (err) {
     console.error(err);
   }
 });
 
-button3.addEventListener("click", async () => {
+buttonPass.addEventListener("click", async () => {
   try {
     const res = await fetch("http://13.48.46.48:3000/pass", {
       method: "POST",
@@ -167,19 +182,20 @@ button3.addEventListener("click", async () => {
 
     const data = await res.json();
     console.log(data);
+
+    await loadRoundHistory();
   } catch (err) {
     console.error(err);
   }
 });
 
-button4.addEventListener("click", () => {
+buttonClear.addEventListener("click", () => {
   document.querySelectorAll(".card.selected").forEach(card => {
     card.classList.remove("selected");
   });
 });
 
-
-button5.addEventListener("click", async () => {
+buttonReady.addEventListener("click", async () => {
   try {
     const res = await fetch("http://13.48.46.48:3000/ready", {
       method: "POST",
@@ -196,17 +212,17 @@ button5.addEventListener("click", async () => {
 
     if (data.status === "all_ready") {
       alert("All players are ready. Cards have been dealt.");
-      loadMyHand();
+      await loadMyHand();
+      await loadRoundHistory();
     } else {
       alert("You are marked as ready. Waiting for other players.");
     }
-
   } catch (err) {
     console.error(err);
     alert("Could not set ready");
   }
 });
 
-
-
 loadMyHand();
+loadRoundHistory();
+setInterval(loadRoundHistory, 3000);

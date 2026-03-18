@@ -2,22 +2,24 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <link rel="stylesheet" href="projectStyle.css">
+  <link rel="stylesheet" href="big2style.css">
 </head>
 <body>
   <h1 id="player-title">Your Hand</h1>
 
-  <div id="history">
-    Show Round history
-    <div class="history-content"></div>
-  </div>
+  <section id="play_area">
+    <h2>Game Table</h2>
+    <div id="round-info">Current Round</div>
+    <div id="history-content" class="history-content"></div>
+  </section>
+
+  <div id="out"></div>
 
   <div id="knappar">
     <button id="play">Play Hand</button>
     <button id="pass">Pass Hand</button>
     <button id="clear">Clear Hand</button>
-	<button id="ready">Ready</button>
-    <div id="out"></div>
+    <button id="ready">Ready</button>
   </div>
 
   <script src="big2.js"></script>
