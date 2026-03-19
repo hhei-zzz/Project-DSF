@@ -1,5 +1,3 @@
-HOW THE SERVER.JS FILE CODE LOOKS LIKE
-
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
@@ -7,16 +5,14 @@ const mysql = require("mysql2/promise");
 const fs = require("fs");
 
 const app = express();
-app.use(cors()); // ok for testing
+app.use(cors());
+app.use(express.json());
 
-// RDS connection config (use env vars in real projects)
-const DB_HOST = process.env.DB_HOST; // your RDS endpoint
-const DB_USER = process.env.DB_USER; // admin
-const DB_PASS = process.env.DB_PASS; // password
-const DB_NAME = process.env.DB_NAME; // big2db
+const DB_HOST = process.env.DB_HOST;
+const DB_USER = process.env.DB_USER;
+const DB_PASS = process.env.DB_PASS;
+const DB_NAME = process.env.DB_NAME;
 
-// If your RDS requires secure transport, use SSL
-// On EC2, download global-bundle.pem once (optional but good)
 let sslConfig = undefined;
 if (fs.existsSync("./global-bundle.pem")) {
   sslConfig = { ca: fs.readFileSync("./global-bundle.pem") };
@@ -28,27 +24,301 @@ const pool = mysql.createPool({
   password: DB_PASS,
   database: DB_NAME,
   port: 3306,
-  ssl: sslConfig, // if file exists, we verify CA
-  connectTimeout: 5000,
+  ssl: sslConfig,
 });
 
-app.get("/deal", async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      "SELECT number, suit FROM card ORDER BY RAND()"
-    );
-    const hands = {
-        hand1: rows.slice (0,13),
-        hand2: rows.slice (13,26),
-        hand3: rows.slice (26,39),
-        hand4: rows.slice (39,52)
-};
+async function getPlayerGameId(playerId) {
+  const [rows] = await pool.query(
+    "SELECT game_id FROM player WHERE id = ? LIMIT 1",
+    [playerId]
+  );
 
-    res.json(hands);
+  if (rows.length === 0) {
+    throw new Error("Player not found");
+  }
+
+  return rows[0].game_id;
+}
+
+app.post("/join", async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "Name is required" });
+    }
+
+    const trimmedName = name.trim();
+
+    // 1) find a WAITING game with fewer than 4 players
+    const [waitingGames] = await pool.query(`
+      SELECT g.id
+      FROM game g
+      LEFT JOIN player p ON g.id = p.game_id
+      WHERE g.status = 'WAITING'
+      GROUP BY g.id
+      HAVING COUNT(p.id) < 4
+      ORDER BY g.id ASC
+      LIMIT 1
+    `);
+
+    let gameId;
+
+    if (waitingGames.length > 0) {
+      gameId = waitingGames[0].id;
+    } else {
+      // 2) create a new game session
+      const [gameResult] = await pool.query(
+        "INSERT INTO game (status) VALUES ('WAITING')"
+      );
+      gameId = gameResult.insertId;
+    }
+
+    // 3) if same player name already joined this waiting game, return existing player
+    const [existing] = await pool.query(
+      "SELECT id, name, seat, game_id FROM player WHERE game_id = ? AND name = ? LIMIT 1",
+      [gameId, trimmedName]
+    );
+
+    if (existing.length > 0) {
+      return res.json({
+        player_id: existing[0].id,
+        name: existing[0].name,
+        seat: existing[0].seat,
+        game_id: existing[0].game_id
+      });
+    }
+
+    // 4) assign next free seat in that game
+    const [seatRows] = await pool.query(
+      "SELECT seat FROM player WHERE game_id = ? ORDER BY seat",
+      [gameId]
+    );
+
+    const usedSeats = seatRows.map(r => r.seat);
+    let nextSeat = 1;
+    while (usedSeats.includes(nextSeat) && nextSeat <= 4) {
+      nextSeat++;
+    }
+
+    if (nextSeat > 4) {
+      return res.status(400).json({ error: "Game is full" });
+    }
+
+    const joinToken = Math.random().toString(36).slice(2, 12);
+
+    const [result] = await pool.query(
+      "INSERT INTO player (game_id, name, seat, join_token) VALUES (?, ?, ?, ?)",
+      [gameId, trimmedName, nextSeat, joinToken]
+    );
+
+    res.json({
+      player_id: result.insertId,
+      name: trimmedName,
+      seat: nextSeat,
+      game_id: gameId
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "DB query failed" });
+    res.status(500).json({ error: "Join failed" });
   }
 });
 
-app.listen(3000, () => console.log("API running on port 3000"));
+app.get("/hand/:playerId", async (req, res) => {
+  try {
+    const playerId = Number(req.params.playerId);
+    const gameId = await getPlayerGameId(playerId);
+
+    const [rows] = await pool.query(
+      `SELECT c.id, c.number, c.suit
+       FROM player_card pc
+       JOIN card c ON pc.card_id = c.id
+       WHERE pc.game_id = ? AND pc.player_id = ? AND pc.in_hand = 1`,
+      [gameId, playerId]
+    );
+
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load hand" });
+  }
+});
+
+app.post("/ready", async (req, res) => {
+  try {
+    const { player_id } = req.body;
+
+    if (!player_id) {
+      return res.status(400).json({ error: "player_id is required" });
+    }
+
+    const gameId = await getPlayerGameId(player_id);
+
+    await pool.query(
+      "UPDATE player SET ready = 1 WHERE id = ?",
+      [player_id]
+    );
+
+    const [players] = await pool.query(
+      "SELECT id, seat, ready FROM player WHERE game_id = ? ORDER BY seat",
+      [gameId]
+    );
+
+    if (players.length < 4) {
+      return res.json({
+        status: "waiting",
+        message: "Waiting for 4 players to join"
+      });
+    }
+
+    const allReady = players.every(p => p.ready === 1);
+
+    if (!allReady) {
+      return res.json({
+        status: "waiting",
+        message: "Waiting for other players to click ready"
+      });
+    }
+
+    const [existingCards] = await pool.query(
+      "SELECT id FROM player_card WHERE game_id = ? LIMIT 1",
+      [gameId]
+    );
+
+    if (existingCards.length === 0) {
+      const [cards] = await pool.query(
+        "SELECT id FROM card ORDER BY RAND()"
+      );
+
+      const values = [];
+      for (let i = 0; i < 52; i++) {
+        const playerIndex = Math.floor(i / 13);
+        values.push([gameId, players[playerIndex].id, cards[i].id, 1]);
+      }
+
+      await pool.query(
+        "INSERT INTO player_card (game_id, player_id, card_id, in_hand) VALUES ?",
+        [values]
+      );
+    }
+
+    await pool.query(
+      "UPDATE game SET status = 'ACTIVE' WHERE id = ?",
+      [gameId]
+    );
+
+    res.json({
+      status: "all_ready",
+      message: "All players ready, game started",
+      game_id: gameId
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Ready failed" });
+  }
+});
+
+app.post("/play", async (req, res) => {
+  try {
+    const { player_id, cards } = req.body;
+
+    if (!player_id || !Array.isArray(cards) || cards.length === 0) {
+      return res.status(400).json({ error: "player_id and cards are required" });
+    }
+
+    const gameId = await getPlayerGameId(player_id);
+
+    for (const card of cards) {
+      await pool.query(
+        `UPDATE player_card
+         SET in_hand = 0
+         WHERE game_id = ? AND player_id = ? AND card_id = ?`,
+        [gameId, player_id, card.card_id]
+      );
+    }
+
+    await pool.query(
+      "INSERT INTO move (game_id, player_id, move_type, cards_json) VALUES (?, ?, 'PLAY', ?)",
+      [gameId, player_id, JSON.stringify(cards)]
+    );
+
+    res.json({ status: "ok", game_id: gameId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Play failed" });
+  }
+});
+
+app.post("/pass", async (req, res) => {
+  try {
+    const { player_id } = req.body;
+
+    if (!player_id) {
+      return res.status(400).json({ error: "player_id is required" });
+    }
+
+    const gameId = await getPlayerGameId(player_id);
+
+    await pool.query(
+      "INSERT INTO move (game_id, player_id, move_type) VALUES (?, ?, 'PASS')",
+      [gameId, player_id]
+    );
+
+    res.json({ status: "ok", game_id: gameId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Pass failed" });
+  }
+});
+
+app.get("/history/:playerId", async (req, res) => {
+  try {
+    const playerId = Number(req.params.playerId);
+    const gameId = await getPlayerGameId(playerId);
+
+    const [rows] = await pool.query(`
+      SELECT
+        m.player_id,
+        p.name AS player_name,
+        m.move_type,
+        m.cards_json,
+        m.created_at
+      FROM move m
+      JOIN player p ON m.player_id = p.id
+      WHERE m.game_id = ?
+      ORDER BY m.id DESC
+      LIMIT 30
+    `, [gameId]);
+
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load history" });
+  }
+});
+
+app.post("/finish-game", async (req, res) => {
+  try {
+    const { player_id } = req.body;
+
+    if (!player_id) {
+      return res.status(400).json({ error: "player_id is required" });
+    }
+
+    const gameId = await getPlayerGameId(player_id);
+
+    await pool.query(
+      "UPDATE game SET status = 'FINISHED' WHERE id = ?",
+      [gameId]
+    );
+
+    res.json({ status: "finished", game_id: gameId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not finish game" });
+  }
+});
+
+app.listen(3000, "0.0.0.0", () => {
+  console.log("API running on port 3000");
+});
