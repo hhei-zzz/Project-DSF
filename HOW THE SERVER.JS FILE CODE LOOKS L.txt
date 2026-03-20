@@ -319,6 +319,23 @@ app.post("/finish-game", async (req, res) => {
   }
 });
 
+app.get("/game-status/:playerId", async (req, res) => {
+  try {
+    const playerId = Number(req.params.playerId);
+    const gameId = await getPlayerGameId(playerId);
+
+    const [rows] = await pool.query(
+      "SELECT status FROM game WHERE id = ? LIMIT 1",
+      [gameId]
+    );
+
+    res.json({ status: rows[0].status });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not get game status" });
+  }
+});
+
 app.listen(3000, "0.0.0.0", () => {
   console.log("API running on port 3000");
 });

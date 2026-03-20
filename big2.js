@@ -113,7 +113,7 @@ async function loadRoundHistory() {
       .reverse()
       .map(move => {
         if (move.move_type === "PASS") {
-          return `<div class="move-row">${move.player_name}: Passed</div>`;
+          return `<div class="move-row">${move.player_name}: Skipped</div>`;
         }
 
         let cards = [];
@@ -135,6 +135,24 @@ async function loadRoundHistory() {
   } catch (err) {
     console.error(err);
     historyContent.innerHTML = `<div class="move-row">Could not load history</div>`;
+  }
+}
+
+let readyCheck = null;
+
+async function checkIfGameStarted() {
+  try {
+    const res = await fetch(`http://13.48.46.48:3000/game-status/${playerId}`);
+    const data = await res.json();
+
+    if (data.status === "ACTIVE") {
+      clearInterval(readyCheck);
+      readyCheck = null;
+      await loadMyHand();
+      await loadRoundHistory();
+    }
+  } catch (err) {
+    console.error(err);
   }
 }
 
@@ -211,11 +229,13 @@ buttonReady.addEventListener("click", async () => {
     console.log(data);
 
     if (data.status === "all_ready") {
-      alert("All players are ready. Cards have been dealt.");
       await loadMyHand();
       await loadRoundHistory();
     } else {
       alert("You are marked as ready. Waiting for other players.");
+      if (!readyCheck) {
+        readyCheck = setInterval(checkIfGameStarted, 2000);
+      }
     }
   } catch (err) {
     console.error(err);
