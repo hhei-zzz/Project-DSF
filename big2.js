@@ -43,6 +43,28 @@ function compareBig2(a, b) {
 }
 
 //*************************//
+function CompareSingle(current, previous) {
+    //1. Kollar om numret är högre.
+    //2. Kollar det är samma nummer och isf om "mönstret" är högre.
+    //Tips: Använd or eftersom att den kommer returnera såfort den ser true.
+    return (current.number > previous.number) || (current.number === previous.number && suitRank(current.suit) > suitRank(previous.suit));
+}
+
+function ComparePair(current, previous) {
+  //1. Kollar om det är samma par(siffra)
+  //2. 
+    if (current[0].number === previous[0].number){
+      const a = Math.max(suitRank(current[0].suit),suitRank(current[1].suit));
+      const b = Math.max(suitRank(previous[0].suit),suitRank(previous[1].suit));
+      return a>b; //Return true om a är större o false om b är större
+    }
+  
+
+    else if (a<b){
+      return false;
+  }
+}
+
 
 //*************************//
 
