@@ -11,7 +11,7 @@ body {
 }
 
 #play_area {
-  max-height: 350px;
+  max-height: 325px;
   border: 2px solid #ccc;
   border-radius: 12px;
   padding: 20px;

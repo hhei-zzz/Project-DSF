@@ -4,11 +4,12 @@ const buttonClear = document.querySelector("#clear");
 const buttonReady = document.querySelector("#ready");
 
 const out = document.querySelector("#out");
-const historyContent = document.querySelector("#history-content");
-const roundInfo = document.querySelector("#round-info");
+const historyContent = document.querySelector(".history-content");
 
 const playerId = sessionStorage.getItem("player_id");
 const playerName = sessionStorage.getItem("player_name");
+
+let readyCheck = null;
 
 document.querySelector("#player-title").textContent = `${playerName}'s Hand`;
 
@@ -101,19 +102,16 @@ async function loadRoundHistory() {
     const moves = await res.json();
 
     if (!moves || moves.length === 0) {
-      roundInfo.textContent = "Current Round";
-      historyContent.innerHTML = `<div class="move-row">No moves yet.</div>`;
+      historyContent.innerHTML = "<div>No moves yet.</div>";
       return;
     }
 
-    roundInfo.textContent = `Moves this round`;
-
-    const html = moves
+    historyContent.innerHTML = moves
       .slice()
       .reverse()
       .map(move => {
         if (move.move_type === "PASS") {
-          return `<div class="move-row">${move.player_name}: Skipped</div>`;
+          return `<div>${move.player_name}: Passed</div>`;
         }
 
         let cards = [];
@@ -127,18 +125,30 @@ async function loadRoundHistory() {
           `${displayNumber(card.number)}${suitSymbol(card.suit)}`
         ).join(" ");
 
-        return `<div class="move-row">${move.player_name}: ${cardText}</div>`;
+        return `<div>${move.player_name}: ${cardText}</div>`;
       })
       .join("");
-
-    historyContent.innerHTML = html;
   } catch (err) {
     console.error(err);
-    historyContent.innerHTML = `<div class="move-row">Could not load history</div>`;
+    historyContent.innerHTML = "<div>Could not load history</div>";
   }
 }
 
-let readyCheck = null;
+async function loadCurrentTurn() {
+  try {
+    const res = await fetch(`http://13.48.46.48:3000/current-turn/${playerId}`);
+    const data = await res.json();
+
+    const existing = document.querySelector("#turn-info");
+    if (existing) {
+      existing.textContent = data.current_turn_player_name
+        ? `Current turn: ${data.current_turn_player_name}`
+        : `Current turn: not set yet`;
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
 
 async function checkIfGameStarted() {
   try {
@@ -146,10 +156,14 @@ async function checkIfGameStarted() {
     const data = await res.json();
 
     if (data.status === "ACTIVE") {
-      clearInterval(readyCheck);
-      readyCheck = null;
+      if (readyCheck) {
+        clearInterval(readyCheck);
+        readyCheck = null;
+      }
+
       await loadMyHand();
       await loadRoundHistory();
+      await loadCurrentTurn();
     }
   } catch (err) {
     console.error(err);
@@ -177,12 +191,26 @@ buttonPlay.addEventListener("click", async () => {
     });
 
     const data = await res.json();
-    console.log(data);
+
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+
+    if (data.status === "round_won") {
+      alert(`Round won by player ${data.winner}. Everyone must click ready again.`);
+      out.innerHTML = "";
+      await loadRoundHistory();
+      await loadCurrentTurn();
+      return;
+    }
 
     await loadMyHand();
     await loadRoundHistory();
+    await loadCurrentTurn();
   } catch (err) {
     console.error(err);
+    alert("Could not play");
   }
 });
 
@@ -199,11 +227,17 @@ buttonPass.addEventListener("click", async () => {
     });
 
     const data = await res.json();
-    console.log(data);
+
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
 
     await loadRoundHistory();
+    await loadCurrentTurn();
   } catch (err) {
     console.error(err);
+    alert("Could not pass");
   }
 });
 
@@ -226,13 +260,12 @@ buttonReady.addEventListener("click", async () => {
     });
 
     const data = await res.json();
-    console.log(data);
 
     if (data.status === "all_ready") {
       await loadMyHand();
       await loadRoundHistory();
+      await loadCurrentTurn();
     } else {
-      alert("You are marked as ready. Waiting for other players.");
       if (!readyCheck) {
         readyCheck = setInterval(checkIfGameStarted, 2000);
       }
@@ -243,6 +276,8 @@ buttonReady.addEventListener("click", async () => {
   }
 });
 
-loadMyHand();
-loadRoundHistory();
 setInterval(loadRoundHistory, 3000);
+setInterval(loadCurrentTurn, 2000);
+checkIfGameStarted();
+loadRoundHistory();
+loadCurrentTurn();
