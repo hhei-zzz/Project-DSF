@@ -1,3 +1,5 @@
+const API_BASE = "http://13.48.46.48";
+
 const buttonPlay = document.querySelector("#play");
 const buttonPass = document.querySelector("#pass");
 const buttonClear = document.querySelector("#clear");
@@ -84,9 +86,15 @@ out.addEventListener("click", (e) => {
   card.classList.add("selected");
 });
 
+buttonClear.addEventListener("click", () => {
+  out.querySelectorAll(".card.selected").forEach(card => {
+    card.classList.remove("selected");
+  });
+});
+
 async function loadMyHand() {
   try {
-    const res = await fetch(`http://13.48.46.48:3000/hand/${playerId}`);
+    const res = await fetch(`${API_BASE}/hand/${playerId}`);
     const cards = await res.json();
     const sorted = [...cards].sort(compareBig2);
     out.innerHTML = handHtml(sorted);
@@ -98,7 +106,7 @@ async function loadMyHand() {
 
 async function loadRoundHistory() {
   try {
-    const res = await fetch(`http://13.48.46.48:3000/history/${playerId}`);
+    const res = await fetch(`${API_BASE}/history/${playerId}`);
     const moves = await res.json();
 
     if (!moves || moves.length === 0) {
@@ -136,7 +144,7 @@ async function loadRoundHistory() {
 
 async function loadCurrentTurn() {
   try {
-    const res = await fetch(`http://13.48.46.48:3000/current-turn/${playerId}`);
+    const res = await fetch(`${API_BASE}/current-turn/${playerId}`);
     const data = await res.json();
 
     const existing = document.querySelector("#turn-info");
@@ -152,7 +160,7 @@ async function loadCurrentTurn() {
 
 async function checkIfGameStarted() {
   try {
-    const res = await fetch(`http://13.48.46.48:3000/game-status/${playerId}`);
+    const res = await fetch(`${API_BASE}/game-status/${playerId}`);
     const data = await res.json();
 
     if (data.status === "ACTIVE") {
@@ -179,7 +187,7 @@ buttonPlay.addEventListener("click", async () => {
   }
 
   try {
-    const res = await fetch("http://13.48.46.48:3000/play", {
+    const res = await fetch(`${API_BASE}/play`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -216,7 +224,7 @@ buttonPlay.addEventListener("click", async () => {
 
 buttonPass.addEventListener("click", async () => {
   try {
-    const res = await fetch("http://13.48.46.48:3000/pass", {
+    const res = await fetch(`${API_BASE}/pass`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -249,7 +257,7 @@ buttonPass.addEventListener("click", async () => {
 
 buttonReady.addEventListener("click", async () => {
   try {
-    const res = await fetch("http://13.48.46.48:3000/ready", {
+    const res = await fetch(`${API_BASE}/ready`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -261,25 +269,21 @@ buttonReady.addEventListener("click", async () => {
 
     const data = await res.json();
 
-if (data.status === "all_ready") {
+    if (data.status === "all_ready") {
+      if (data.board_cleared) {
+        historyContent.innerHTML = "";
+      } else {
+        await loadRoundHistory();
+      }
 
-  if (data.board_cleared) {
-    historyContent.innerHTML = "";
-  } else {
-    await loadRoundHistory();
-  }
-
-  await loadCurrentTurn();
-  await loadMyHand();
-
-} else {
-  if (!readyCheck) {
-    readyCheck = setInterval(checkIfGameStarted, 2000);
-    alert("Waiting for player to click ready");
-  }
-
-  //alert(data.message); // ← use backend message
-}
+      await loadCurrentTurn();
+      await loadMyHand();
+    } else {
+      if (!readyCheck) {
+        readyCheck = setInterval(checkIfGameStarted, 2000);
+        alert("Waiting for player to click ready");
+      }
+    }
   } catch (err) {
     console.error(err);
     alert("Could not set ready");
@@ -288,6 +292,7 @@ if (data.status === "all_ready") {
 
 setInterval(loadRoundHistory, 3000);
 setInterval(loadCurrentTurn, 2000);
+
 checkIfGameStarted();
 loadRoundHistory();
 loadCurrentTurn();
