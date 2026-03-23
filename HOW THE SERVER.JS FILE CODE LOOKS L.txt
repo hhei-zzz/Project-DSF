@@ -70,9 +70,9 @@ async function getCheckPasses(playerId) {
   };
 }
 
-// checks whose turn is it right now, if its playerid 2 turn then playerid 7 cant play
+// kollar vems tur det är just nu, om det är playerId 2 som ska spela så kan inte playerId spela
 async function getCurrentTurnPlayerId(playerId) {
-  // 1. get game_id of this player
+  // få game_id från denna spelaren
   const [playerRows] = await pool.query(
     "SELECT game_id FROM player WHERE id = ? LIMIT 1",
     [playerId]
@@ -80,7 +80,7 @@ async function getCurrentTurnPlayerId(playerId) {
 
   const gameId = playerRows[0].game_id;
 
-  // 2. get current turn from game table
+  // få vems tur det är från "game" tabellen 
   const [gameRows] = await pool.query(
     "SELECT current_turn_player_id FROM game WHERE id = ? LIMIT 1",
     [gameId]
@@ -184,7 +184,7 @@ app.post("/join", async (req, res) => {
 
     const trimmedName = name.trim();
 
-    // 1) find a WAITING game with fewer than 4 players
+    // hitta ett game med status "WAITING" med mindre än 4 spelare
     const [waitingGames] = await pool.query(`
       SELECT g.id
       FROM game g
@@ -201,14 +201,14 @@ app.post("/join", async (req, res) => {
     if (waitingGames.length > 0) {
       gameId = waitingGames[0].id;
     } else {
-      // 2) create a new game session
+      // skapar en ny game session
       const [gameResult] = await pool.query(
         "INSERT INTO game (status) VALUES ('WAITING')"
       );
       gameId = gameResult.insertId;
     }
 
-    // 3) if same player name already joined this waiting game, return existing player
+    // kollar om spelaren redan finns/joinat gamelobbyn som är "WAITING", om det gör, returnering den som finns. Inga dubletter skapas
     const [existing] = await pool.query(
       "SELECT id, name, seat, game_id FROM player WHERE game_id = ? AND name = ? LIMIT 1",
       [gameId, trimmedName]
@@ -223,7 +223,7 @@ app.post("/join", async (req, res) => {
       });
     }
 
-    // 4) assign next free seat in that game
+    // placerar spelaren i nästa lediga stol
     const [seatRows] = await pool.query(
       "SELECT seat FROM player WHERE game_id = ? ORDER BY seat",
       [gameId]
@@ -319,7 +319,7 @@ app.post("/ready", async (req, res) => {
       [gameId]
     );
 
-    // only deal when there are no current cards in hand
+    // dela endast ut korten om det inte finns några kort i hand
     if (existingCards.length === 0) {
       const [cards] = await pool.query(
         "SELECT id FROM card ORDER BY RAND()"
@@ -336,8 +336,7 @@ app.post("/ready", async (req, res) => {
         [values]
       );
       
-      // first round of the session only:
-      // if no moves exist yet, use 3♦ starter
+      //logik för första rundan endast, om moves för nuvarande game är tom, leta efter ruter 3 som börjar
       const [moves] = await pool.query(
         "SELECT id FROM move WHERE game_id = ? LIMIT 1",
         [gameId]
@@ -360,8 +359,7 @@ app.post("/ready", async (req, res) => {
           [starterId, gameId]
         );
       }
-      // else:
-      // later rounds keep the winner already stored in current_turn_player_id
+      // blir en else sats här, vinnarna lagras redan i current_turn_player_id så rundorna efter startas utifrån det
     }
 
     await pool.query(
