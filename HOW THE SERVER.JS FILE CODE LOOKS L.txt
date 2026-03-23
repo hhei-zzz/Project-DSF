@@ -27,6 +27,49 @@ const pool = mysql.createPool({
   ssl: sslConfig,
 });
 
+async function getCheckPasses(playerId) {
+  const gameId = await getPlayerGameId(playerId);
+
+  const [moves] = await pool.query(
+    "SELECT player_id, move_type FROM move WHERE game_id = ? ORDER BY id DESC",
+    [gameId]
+  );
+
+  let passCounter = 0;
+
+  for (let i = 0; i < moves.length; i++) {
+    const move = moves[i];
+
+    if (move.move_type === "CLEAR") {
+      break;
+    }
+
+    if (move.move_type === "PASS") {
+      passCounter++;
+      continue;
+    }
+
+    if (move.move_type === "PLAY") {
+      if (passCounter === 3) {
+        return {
+          board_cleared: true,
+          lastPlayPlayerId: move.player_id
+        };
+      }
+
+      return {
+        board_cleared: false,
+        lastPlayPlayerId: null
+      };
+    }
+  }
+
+  return {
+    board_cleared: false,
+    lastPlayPlayerId: null
+  };
+}
+
 // checks whose turn is it right now, if its playerid 2 turn then playerid 7 cant play
 async function getCurrentTurnPlayerId(playerId) {
   // 1. get game_id of this player
@@ -94,19 +137,21 @@ async function checkRoundWinnerAndReset(playerId) {
 
   const winnerId = playerId;
 
-  // clear hands for next round
+  await pool.query(
+    "INSERT INTO move (game_id, player_id, move_type) VALUES (?, ?, 'CLEAR')",
+    [gameId, winnerId]
+  );
+
   await pool.query(
     "DELETE FROM player_card WHERE game_id = ?",
     [gameId]
   );
 
-  // everyone must click ready again
   await pool.query(
     "UPDATE player SET ready = 0 WHERE game_id = ?",
     [gameId]
   );
 
-  // winner starts next round
   await pool.query(
     "UPDATE game SET current_turn_player_id = ?, status = 'WAITING' WHERE id = ?",
     [winnerId, gameId]
@@ -290,7 +335,7 @@ app.post("/ready", async (req, res) => {
         "INSERT INTO player_card (game_id, player_id, card_id, in_hand) VALUES ?",
         [values]
       );
-
+      
       // first round of the session only:
       // if no moves exist yet, use 3♦ starter
       const [moves] = await pool.query(
@@ -326,6 +371,7 @@ app.post("/ready", async (req, res) => {
 
     res.json({
       status: "all_ready",
+      board_cleared: true,
       message: "All players ready, cards dealt",
       game_id: gameId
     });
@@ -347,7 +393,7 @@ app.post("/play", async (req, res) => {
     const currentTurnPlayerId = await getCurrentTurnPlayerId(player_id);
 
     if (player_id !== currentTurnPlayerId) {
-      return res.status(400).json({ error: "Not your turn" });
+      return res.status(400).json({ error: "Not your turn!" });
     }
 
     for (const card of cards) {
@@ -367,9 +413,14 @@ app.post("/play", async (req, res) => {
     const result = await checkRoundWinnerAndReset(player_id);
 
     if (result.winner) {
+      const [winnerRow] = await pool.query(
+        "SELECT name FROM player WHERE id = ? LIMIT 1",
+        [result.winnerId]
+      );
+
       return res.json({
         status: "round_won",
-        winner: result.winnerId,
+        winner: winnerRow[0].name,
         game_id: gameId
       });
     }
@@ -408,16 +459,39 @@ app.post("/pass", async (req, res) => {
       [gameId, player_id]
     );
 
+    const result = await getCheckPasses(player_id);
+
+    if (result.board_cleared) {
+      await pool.query(
+        "UPDATE game SET current_turn_player_id = ? WHERE id = ?",
+        [result.lastPlayPlayerId, gameId]
+      );
+
+      await pool.query(
+        "INSERT INTO move (game_id, player_id, move_type) VALUES (?, ?, 'CLEAR')",
+        [gameId, result.lastPlayPlayerId]
+      );
+
+      return res.json({
+        status: "board_cleared",
+        board_cleared: true,
+        next_player: result.lastPlayPlayerId,
+        game_id: gameId
+      });
+    }
+
     const nextPlayerId = await getNextPlayerId(player_id);
 
     await pool.query(
-      `UPDATE game
-       SET current_turn_player_id = ?
-       WHERE id = ?`, 
-       [nextPlayerId, gameId]
+      "UPDATE game SET current_turn_player_id = ? WHERE id = ?",
+      [nextPlayerId, gameId]
     );
 
-    res.json({ status: "ok", game_id: gameId });
+    res.json({
+      status: "ok",
+      board_cleared: false,
+      game_id: gameId
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Pass failed" });
@@ -430,7 +504,8 @@ app.get("/history/:playerId", async (req, res) => {
     const gameId = await getPlayerGameId(playerId);
 
     const [rows] = await pool.query(`
-      SELECT
+      SELECT 
+        m.id,
         m.player_id,
         p.name AS player_name,
         m.move_type,
@@ -440,10 +515,21 @@ app.get("/history/:playerId", async (req, res) => {
       JOIN player p ON m.player_id = p.id
       WHERE m.game_id = ?
       ORDER BY m.id DESC
-      LIMIT 30
     `, [gameId]);
 
-    res.json(rows);
+    const currentBoardMoves = [];
+
+    for (const row of rows) {
+      if (row.move_type === "CLEAR") {
+        break;
+      }
+
+      currentBoardMoves.push(row);
+    }
+
+    currentBoardMoves.reverse();
+
+    res.json(currentBoardMoves);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Could not load history" });

@@ -233,18 +233,18 @@ buttonPass.addEventListener("click", async () => {
       return;
     }
 
+    if (data.status === "board_cleared") {
+      historyContent.innerHTML = "";
+      await loadCurrentTurn();
+      return;
+    }
+
     await loadRoundHistory();
     await loadCurrentTurn();
   } catch (err) {
     console.error(err);
     alert("Could not pass");
   }
-});
-
-buttonClear.addEventListener("click", () => {
-  document.querySelectorAll(".card.selected").forEach(card => {
-    card.classList.remove("selected");
-  });
 });
 
 buttonReady.addEventListener("click", async () => {
@@ -261,15 +261,25 @@ buttonReady.addEventListener("click", async () => {
 
     const data = await res.json();
 
-    if (data.status === "all_ready") {
-      await loadMyHand();
-      await loadRoundHistory();
-      await loadCurrentTurn();
-    } else {
-      if (!readyCheck) {
-        readyCheck = setInterval(checkIfGameStarted, 2000);
-      }
-    }
+if (data.status === "all_ready") {
+
+  if (data.board_cleared) {
+    historyContent.innerHTML = "";
+  } else {
+    await loadRoundHistory();
+  }
+
+  await loadCurrentTurn();
+  await loadMyHand();
+
+} else {
+  if (!readyCheck) {
+    readyCheck = setInterval(checkIfGameStarted, 2000);
+    alert("Waiting for player to click ready");
+  }
+
+  //alert(data.message); // ← use backend message
+}
   } catch (err) {
     console.error(err);
     alert("Could not set ready");

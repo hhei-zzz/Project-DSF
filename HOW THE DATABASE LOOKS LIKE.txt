@@ -19,7 +19,7 @@ CREATE TABLE `move` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `game_id` int(11) NOT NULL,
   `player_id` int(11) NOT NULL,
-  `move_type` enum('PLAY','PASS') NOT NULL,
+  `move_type` enum('PLAY','PASS', 'CLEAR') NOT NULL,
   `cards_json` text DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
