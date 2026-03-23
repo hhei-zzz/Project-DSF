@@ -30,3 +30,9 @@ DATABASE LOGINS FOR PROJECT DSF
 
 3. type in password (laxen123)
 
+FOR ONLINE GAME (SINCE NO DOMAIN)
+
+run these in 2 terminals!
+
+1. node server.js in EC2
+2. cloudflared tunnel --url http://localhost:3000
