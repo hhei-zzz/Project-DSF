@@ -42,6 +42,11 @@ function compareBig2(a, b) {
   return suitRank(b.suit) - suitRank(a.suit);
 }
 
+//Här tänker jag köra en if sats för spelomgång för en spelare
+function Playhand(hand){
+
+}
+
 //Här börjar funktionerna för ettkort,par,triss,femkort
 function CheckOne(hand){
   if (hand.length === 1){return true;}
@@ -116,6 +121,8 @@ const Fourofakind = 4;
 const Straightflush = 5
 const SUIT_RANK = {"DIAMONDS": 1, "CLUBS": 2, "HEARTS": 3, "SPADES": 4};
 
+
+
 function CheckStraight(hand){ //kollar endast om det är en straight
   if (hand.length !== 5){return null;}
   const nums = hand.map(c => c.number).sort((a,b) => a - b);
@@ -126,13 +133,76 @@ function CheckStraight(hand){ //kollar endast om det är en straight
   return true;
 
   //nu måste vi hitta highcard zzzz
-  //idén är att vi ska istället för hand. nvm michael do lowk fka mig eftersom du la diamond som id1 istället för id4 :/
-  //ny idé är att jag splittar upp allt i två funnktioner och kör composition
+  //idén är att vi ska istället för hand. nvm 
+  //ny idé är att jag splittar upp allt i två funnktioner och kör composition. Så en check sen compare.
 }
-function CompareStraight(current, previous){
+function CompareStraight(current, previous){ //Idén är att jämföra korten ur båda händerna card by card
+  // Lambda för att sortera 
+  const sortByPower = (hand) => [...hand].sort((a, b) => BIG_TWO_RANK[b.number] - BIG_TWO_RANK[a.number]);
+
+  const currSorted = sortByPower(current);
+  const prevSorted = sortByPower(previous);
+
+  // Gå igenom korten ett och ett (Kickers)
+  for (let i = 0; i < 5; i++) {
+    const currPwr = BIG_TWO_RANK[currSorted[i].number];
+    const prevPwr = BIG_TWO_RANK[prevSorted[i].number];
+
+    if (currPwr > prevPwr) return true;
+    if (currPwr < prevPwr) return false;
+
+    // Om Power är exakt samma kolla färgen på det starkaste kortet
+    if (i === 4) { //måste ha i === 4 så den kollar igenom hela eftersom att A-2-3-4-5 > 2-3-4-5-6
+      if (SUIT_RANK[currSorted[i].suit] > SUIT_RANK[prevSorted[i].suit]) return true;
+      if (SUIT_RANK[currSorted[i].suit] < SUIT_RANK[prevSorted[i].suit]) return false;
+    }
+  }
+  return false;
+}
+
+function CheckFlush(hand){
+  if (hand.length === 5 && hand[0].suit === hand[1].suit && hand[1].suit === hand[2].suit && hand[2].suit === hand[3].suit && hand[3].suit === hand[4].suit){return true;}
+  else{return false;}
+}
+function CompareFlush(current, previous){
+  const sortByPower = (hand) => [...hand].sort((a, b) => BIG_TWO_RANK[b.number] - BIG_TWO_RANK[a.number]);
+
+  const currSorted = sortByPower(current);
+  const prevSorted = sortByPower(previous);
+
+  // Gå igenom korten ett och ett (Kickers)
+  for (let i = 0; i < 5; i++) {
+    const currPwr = BIG_TWO_RANK[currSorted[i].number];
+    const prevPwr = BIG_TWO_RANK[prevSorted[i].number];
+
+    if (currPwr > prevPwr) return true;
+    if (currPwr < prevPwr) return false;
+
+    // Om Power är exakt samma kolla färgen på det starkaste kortet
+    if (i === 4) { //måste ha i === 4 så den kollar igenom hela eftersom att A-2-3-4-5 > 2-3-4-5-6
+      if (SUIT_RANK[currSorted[i].suit] > SUIT_RANK[prevSorted[i].suit]) return true;
+      if (SUIT_RANK[currSorted[i].suit] < SUIT_RANK[prevSorted[i].suit]) return false;
+    }
+  }
+  return false;
+}
+
+function CheckFullHouse(hand){
+  const sortByPower = (hand) => [...hand].sort((a, b) => BIG_TWO_RANK[b.number] - BIG_TWO_RANK[a.number]);
+   
+  if(sortByPower(hand).length===5){ 
+    if(sortByPower[0].number === sortByPower[1].number && sortByPower[1].number === sortByPower[2].number && sortByPower[3].number === sortByPower[4].number){
+      return true;//Q-Q-Q-3-3
+    }
+    else if(sortByPower[0].number === sortByPower[1].number && sortByPower[2].number === sortByPower[3].number && sortByPower[3].number === sortByPower[4].number){
+      return true;//Q-Q-3-3-3
+    }
+    else{return false;}
+  }
+}
+function CompareFullHouse(current, previous){
 
 }
-
 
 
 
