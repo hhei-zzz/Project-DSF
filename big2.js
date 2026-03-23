@@ -1,4 +1,4 @@
-const API_BASE = "http://13.48.46.48";
+const API_BASE = "https://13.48.46.48";
 
 const buttonPlay = document.querySelector("#play");
 const buttonPass = document.querySelector("#pass");
