@@ -1,4 +1,4 @@
-const API_BASE = "https://involvement-derived-breakfast-bind.trycloudflare.com";
+const API_BASE = "https://clause-knives-giving-wrote.trycloudflare.com";
 
 const buttonPlay = document.querySelector("#play");
 const buttonPass = document.querySelector("#pass");
