@@ -114,7 +114,7 @@ async function isValidPlay(selected) {
     if (count === 3) return checkThreeOfAKind(selected);
     if (count === 5) return compareFive(selected, []);
 
-    alert("Du får bara spela 1, 2, 3 eller 5 kort.");
+    alert("You are only allowed to play 1, 2, 3 or 5 card hand.");
     return false;
   }
 
@@ -122,7 +122,7 @@ async function isValidPlay(selected) {
   const tableCount = tableCards.length;
 
   if (tableCount > 0 && count !== tableCount) {
-    alert("Du måste lägga lika många kort som ligger på bordet.");
+    alert("You must play the same amount of cards as the previously played hand.");
     return false;
   }
 
@@ -131,7 +131,7 @@ async function isValidPlay(selected) {
   if (count === 3) return checkThreeOfAKind(selected) && compareThreeOfAKind(selected, tableCards);
   if (count === 5) return compareFive(selected, tableCards);
 
-  alert("Du får bara spela 1, 2, 3 eller 5 kort.");
+  alert("You are only allowed to play 1, 2, 3 or 5 card hand.");
   return false;
 }
 
