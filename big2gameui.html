@@ -5,14 +5,40 @@
   <link rel="stylesheet" href="big2style.css">
 </head>
 <body>
+  <div id="past-sessions-tab">
+  <button id="toggle-past-sessions" type="button">Past Sessions</button>
+
+  <div id="past-sessions-panel" class="past-sessions-panel hidden">
+    <h2>Past Sessions</h2>
+    <div id="past-sessions-list">Loading...</div>
+    <div id="past-session-summary"></div>
+  </div>
+  </div>
+
+  <div id="player-status-panel">
+    <div class="player-status-title">Players</div>
+    <div id="player-status-content"></div>
+  </div>
+
   <h1 id="player-title">Your Hand</h1>
-  <div id="turn-info">Current turn: loading...</div>
+  <div id="turn-info">Current turn:</div>
 
   <section id="play_area">
     <h2>Game Table</h2>
     <div id="round-info">Current Round</div>
     <div id="history-content" class="history-content"></div>
   </section>
+
+  <section id="history-tab">
+  <button id="toggle-session-history" type="button">Session History</button>
+
+  <div id="session-history-panel" class="session-history-panel hidden">
+    <h2>Session History</h2>
+    <div id="session-history-content">
+      No rounds finished yet.
+    </div>
+  </div>
+</section>
 
   <div id="out"></div>
 
@@ -24,5 +50,6 @@
   </div>
 
   <script src="big2.js"></script>
+
 </body>
 </html>

@@ -13,13 +13,14 @@ CREATE TABLE `game` (
   `created_at` timestamp NULL DEFAULT current_timestamp(),
   `current_turn_player_id` int(11) DEFAULT NULL,
   `last_move_id` int(11) DEFAULT NULL,
+  `round_number` int(11) NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`)
 
 CREATE TABLE `move` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `game_id` int(11) NOT NULL,
   `player_id` int(11) NOT NULL,
-  `move_type` enum('PLAY','PASS', 'CLEAR') NOT NULL,
+  `move_type` enum('PLAY','PASS','CLEAR') DEFAULT NULL,
   `cards_json` text DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
@@ -35,6 +36,7 @@ CREATE TABLE `player` (
   `seat` tinyint(4) NOT NULL,
   `join_token` varchar(64) NOT NULL,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `ready` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_game_seat` (`game_id`,`seat`),
   CONSTRAINT `player_ibfk_1` FOREIGN KEY (`game_id`) REFERENCES `game` (`id`) ON DELETE CASCADE
@@ -52,3 +54,33 @@ CREATE TABLE `player_card` (
   CONSTRAINT `player_card_ibfk_1` FOREIGN KEY (`game_id`) REFERENCES `game` (`id`) ON DELETE CASCADE,
   CONSTRAINT `player_card_ibfk_2` FOREIGN KEY (`player_id`) REFERENCES `player` (`id`) ON DELETE CASCADE,
   CONSTRAINT `player_card_ibfk_3` FOREIGN KEY (`card_id`) REFERENCES `card` (`id`) ON DELETE CASCADE
+
+CREATE TABLE `round_result` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `game_id` int(11) NOT NULL,
+  `round_number` int(11) NOT NULL,
+  `winner_player_id` int(11) NOT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `game_id` (`game_id`),
+  KEY `winner_player_id` (`winner_player_id`),
+  CONSTRAINT `round_result_game_fk` FOREIGN KEY (`game_id`) REFERENCES `game` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `round_result_winner_fk` FOREIGN KEY (`winner_player_id`) REFERENCES `player` (`id`) ON DELETE CASCADE
+
+
+CREATE TABLE `round_score` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `round_result_id` int(11) NOT NULL,
+  `player_id` int(11) NOT NULL,
+  `player_name` varchar(50) NOT NULL,
+  `seat` tinyint(4) NOT NULL,
+  `previous_points` int(11) NOT NULL DEFAULT 0,
+  `round_change` int(11) NOT NULL DEFAULT 0,
+  `total_points` int(11) NOT NULL DEFAULT 0,
+  `is_winner` tinyint(1) NOT NULL DEFAULT 0,
+  `cards_left` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `round_result_id` (`round_result_id`),
+  KEY `player_id` (`player_id`),
+  CONSTRAINT `round_score_player_fk` FOREIGN KEY (`player_id`) REFERENCES `player` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `round_score_result_fk` FOREIGN KEY (`round_result_id`) REFERENCES `round_result` (`id`) ON DELETE CASCADE
